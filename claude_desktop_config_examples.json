@@ -1,0 +1,129 @@
+{
+  "examples": {
+    "description": "Claude Desktop配置示例",
+    "examples": [
+      {
+        "name": "基本命令行参数配置",
+        "config": {
+          "mcpServers": {
+            "ssh-mcp": {
+              "command": "uvx",
+              "args": [
+                "ssh-agent-mcp@latest",
+                "--host=192.168.1.100",
+                "--port=22",
+                "--user=root",
+                "--password=your_password",
+                "--timeout=30000",
+                "--max-chars=none"
+              ]
+            }
+          }
+        },
+        "description": "使用命令行参数直接配置SSH连接"
+      },
+      {
+        "name": "使用私钥认证",
+        "config": {
+          "mcpServers": {
+            "ssh-mcp": {
+              "command": "uvx",
+              "args": [
+                "ssh-agent-mcp@latest",
+                "--host=prod.example.com",
+                "--user=admin",
+                "--key=/home/user/.ssh/id_rsa",
+                "--timeout=60000"
+              ]
+            }
+          }
+        },
+        "description": "使用私钥文件进行SSH认证"
+      },
+      {
+        "name": "使用配置文件",
+        "config": {
+          "mcpServers": {
+            "ssh-mcp": {
+              "command": "uvx",
+              "args": [
+                "ssh-agent-mcp@latest",
+                "--config=/path/to/ssh_config.json",
+                "--connection=production-server",
+                "--auto-connect"
+              ]
+            }
+          }
+        },
+        "description": "使用JSON配置文件管理多个SSH连接"
+      },
+      {
+        "name": "本地开发版本",
+        "config": {
+          "mcpServers": {
+            "ssh-mcp": {
+              "command": "python",
+              "args": [
+                "/path/to/sshagent/main.py",
+                "--host=192.168.1.100",
+                "--user=admin",
+                "--password=dev_password"
+              ]
+            }
+          }
+        },
+        "description": "使用本地开发版本进行测试"
+      },
+      {
+        "name": "多个SSH服务器",
+        "config": {
+          "mcpServers": {
+            "ssh-prod": {
+              "command": "uvx",
+              "args": [
+                "ssh-agent-mcp@latest",
+                "--config=/path/to/prod_config.json",
+                "--connection=prod-server",
+                "--auto-connect"
+              ]
+            },
+            "ssh-dev": {
+              "command": "uvx",
+              "args": [
+                "ssh-agent-mcp@latest",
+                "--config=/path/to/dev_config.json",
+                "--connection=dev-server"
+              ]
+            }
+          }
+        },
+        "description": "同时配置多个SSH服务器连接"
+      },
+      {
+        "name": "Docker容器SSH",
+        "config": {
+          "mcpServers": {
+            "ssh-docker": {
+              "command": "uvx",
+              "args": [
+                "ssh-agent-mcp@latest",
+                "--host=localhost",
+                "--port=2222",
+                "--user=root",
+                "--key=/home/user/.ssh/docker_key"
+              ]
+            }
+          }
+        },
+        "description": "连接到本地Docker容器的SSH服务"
+      }
+    ]
+  },
+  "usage_notes": {
+    "uvx": "uvx是Python包运行器，会自动下载并运行指定版本的包",
+    "ssh-agent-mcp@latest": "使用最新版本，也可以指定具体版本如@0.1.0",
+    "auto-connect": "启动时自动建立SSH连接，无需手动连接",
+    "config_file": "配置文件路径支持绝对路径和相对路径",
+    "security": "避免在配置文件中明文存储密码，建议使用私钥认证"
+  }
+}

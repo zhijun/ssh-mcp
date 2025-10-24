@@ -1,0 +1,41 @@
+{
+  "name": "ssh-agent-mcp",
+  "version": "0.1.0",
+  "description": "SSH Agent MCP Server - 通过命令行参数或JSON配置文件管理SSH连接的MCP服务器",
+  "main": "main.py",
+  "bin": {
+    "ssh-agent-mcp": "main.py"
+  },
+  "scripts": {
+    "start": "python main.py",
+    "test": "python -m pytest",
+    "build": "python build.py --all",
+    "publish": "python -m build && python -m twine upload dist/*"
+  },
+  "keywords": [
+    "mcp",
+    "ssh",
+    "remote",
+    "automation",
+    "claude",
+    "ai"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/sshagent.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/sshagent/issues"
+  },
+  "homepage": "https://github.com/yourusername/sshagent#readme",
+  "engines": {
+    "python": ">=3.12"
+  },
+  "files": [
+    "*.py",
+    "README.md",
+    "pyproject.toml"
+  ]
+}

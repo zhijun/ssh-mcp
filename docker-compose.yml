@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  ssh-agent-mcp:
+    build: .
+    container_name: ssh-agent-mcp
+    volumes:
+      - ./ssh_config.json:/app/ssh_config.json:ro
+      - ~/.ssh:/home/sshagent/.ssh:ro
+    environment:
+      - SSH_CONFIG_PATH=/app/ssh_config.json
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    networks:
+      - mcp-network
+
+networks:
+  mcp-network:
+    driver: bridge
