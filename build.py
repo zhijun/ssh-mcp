@@ -28,7 +28,8 @@ def build_wheel():
     """构建wheel包"""
     print("🔨 构建wheel包...")
     try:
-        subprocess.check_call([sys.executable, "-m", "build", "--wheel"])
+        # 使用setup.py而不是build模块来避免递归调用
+        subprocess.check_call([sys.executable, "setup.py", "bdist_wheel"])
         print("✅ Wheel包构建成功")
         return True
     except subprocess.CalledProcessError as e:
@@ -39,7 +40,8 @@ def build_sdist():
     """构建源码包"""
     print("🔨 构建源码包...")
     try:
-        subprocess.check_call([sys.executable, "-m", "build", "--sdist"])
+        # 使用setup.py而不是build模块来避免递归调用
+        subprocess.check_call([sys.executable, "setup.py", "sdist"])
         print("✅ 源码包构建成功")
         return True
     except subprocess.CalledProcessError as e:
@@ -91,8 +93,9 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from main import main
+# 导入MCP服务器的main函数
 if __name__ == "__main__":
+    from mcp_server import main
     main()
 """
     with open(portable_dir / "start_ssh_agent.py", "w") as f:
