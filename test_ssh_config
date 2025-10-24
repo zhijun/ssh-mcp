@@ -1,0 +1,25 @@
+Host test-local
+    HostName localhost
+    User root
+    Port 22
+    IdentityFile ~/.ssh/id_rsa
+
+Host test-password
+    HostName localhost
+    User testuser
+    Port 22
+    # Password will be provided via parameters
+
+Host test-custom-port
+    HostName localhost
+    User admin
+    Port 2222
+    IdentityFile ~/.ssh/id_rsa
+
+Host test-with-options
+    HostName localhost
+    User deploy
+    Port 22
+    IdentityFile ~/.ssh/deploy_key
+    ServerAliveInterval 60
+    ServerAliveCountMax 3

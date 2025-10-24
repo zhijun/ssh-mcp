@@ -64,6 +64,13 @@ class TerminateCommandParams(BaseModel):
 class ConnectByNameParams(BaseModel):
     connection_name: str = Field(description="配置文件中的连接名称")
 
+class ConnectByConfigHostParams(BaseModel):
+    config_host: str = Field(description="SSH config文件中的主机名")
+    username: Optional[str] = Field(default=None, description="可选用户名，覆盖config中的设置")
+    password: Optional[str] = Field(default=None, description="可选密码")
+    private_key: Optional[str] = Field(default=None, description="可选私钥文件路径")
+    private_key_password: Optional[str] = Field(default=None, description="可选私钥密码")
+
 class ListConfigParams(BaseModel):
     filter_tag: Optional[str] = Field(default=None, description="按标签过滤连接")
 
@@ -290,6 +297,21 @@ async def handle_list_tools() -> List[Tool]:
                     "session_id": {"type": "string", "description": "要终止的交互式会话ID"}
                 },
                 "required": ["session_id"]
+            }
+        ),
+        Tool(
+            name="ssh_connect_by_config_host",
+            description="使用SSH config文件中的主机名建立连接",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "config_host": {"type": "string", "description": "SSH config文件中的主机名"},
+                    "username": {"type": "string", "description": "可选用户名，覆盖config中的设置"},
+                    "password": {"type": "string", "description": "可选密码"},
+                    "private_key": {"type": "string", "description": "可选私钥文件路径"},
+                    "private_key_password": {"type": "string", "description": "可选私钥密码"}
+                },
+                "required": ["config_host"]
             }
         )
     ]
@@ -871,6 +893,53 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> CallToolResu
                     content=[TextContent(
                         type="text",
                         text=f"终止会话失败: {str(e)}"
+                    )],
+                    isError=True
+                )
+            
+        elif name == "ssh_connect_by_config_host":
+            params = ConnectByConfigHostParams(**arguments)
+            try:
+                connection_id = await ssh_manager.create_connection_from_config(
+                    config_host=params.config_host,
+                    username=params.username,
+                    password=params.password,
+                    private_key=params.private_key,
+                    private_key_password=params.private_key_password
+                )
+                
+                # 检查连接状态
+                status = await ssh_manager.get_connection_status(connection_id)
+                
+                output = f"使用SSH config连接: {params.config_host}\n"
+                output += f"连接ID: {connection_id}\n"
+                
+                if status["status"] == "connected":
+                    output += f"状态: 连接成功\n"
+                    output += f"实际主机: {status['host']}:{status['port']}\n"
+                    output += f"用户名: {status['username']}"
+                    return CallToolResult(
+                        content=[TextContent(
+                            type="text",
+                            text=output
+                        )],
+                        isError=False
+                    )
+                else:
+                    output += f"状态: 连接失败\n"
+                    output += f"错误信息: {status.get('error_message', '未知错误')}"
+                    return CallToolResult(
+                        content=[TextContent(
+                            type="text",
+                            text=output
+                        )],
+                        isError=True
+                    )
+            except Exception as e:
+                return CallToolResult(
+                    content=[TextContent(
+                        type="text",
+                        text=f"SSH config连接失败: {str(e)}"
                     )],
                     isError=True
                 )

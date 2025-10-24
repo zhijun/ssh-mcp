@@ -2,6 +2,7 @@ import paramiko
 import asyncio
 import uuid
 import time
+import os
 from typing import Dict, Optional, Tuple, List
 from enum import Enum
 import logging
@@ -141,6 +142,111 @@ class SSHConnection:
             self.status = ConnectionStatus.ERROR
             self.error_message = str(e)
             logger.error(f"SSH连接失败: {e}")
+            return False
+    
+    async def connect_from_config(self, config_host: str,
+                                username: Optional[str] = None,
+                                password: Optional[str] = None,
+                                private_key: Optional[str] = None,
+                                private_key_password: Optional[str] = None) -> bool:
+        """使用SSH config中的主机名建立连接"""
+        try:
+            self.status = ConnectionStatus.CONNECTING
+            self.client = paramiko.SSHClient()
+            self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            
+            # 加载SSH配置文件
+            ssh_config = paramiko.SSHConfig()
+            try:
+                with open(os.path.expanduser('~/.ssh/config'), 'r') as f:
+                    ssh_config.parse(f)
+            except FileNotFoundError:
+                logger.warning("~/.ssh/config 文件不存在")
+                # 如果config文件不存在，回退到普通连接方式
+                return await self.connect(password, private_key, private_key_password)
+            
+            # 获取主机配置
+            host_config = ssh_config.lookup(config_host)
+            
+            # 准备连接参数
+            auth_kwargs = {
+                'hostname': host_config.get('hostname', config_host),
+                'port': int(host_config.get('port', 22)),
+                'username': username or host_config.get('user', self.username),
+                'timeout': 10
+            }
+            
+            # 更新连接对象的属性
+            self.host = auth_kwargs['hostname']
+            self.port = auth_kwargs['port']
+            self.username = auth_kwargs['username']
+            
+            # 处理私钥
+            if private_key:
+                # 使用显式提供的私钥
+                try:
+                    key_obj = paramiko.RSAKey.from_private_key_file(
+                        private_key, password=private_key_password
+                    ) if isinstance(private_key, str) else paramiko.RSAKey.from_private_key(
+                        private_key, password=private_key_password
+                    )
+                    auth_kwargs['pkey'] = key_obj
+                except Exception as e:
+                    logger.error(f"无法加载提供的私钥文件 {private_key}: {e}")
+                    # 如果提供的私钥加载失败，继续尝试其他认证方式
+            elif 'identityfile' in host_config:
+                # 使用config中指定的私钥文件
+                identity_file = host_config['identityfile']
+                if isinstance(identity_file, list):
+                    identity_file = identity_file[0]
+                identity_file = os.path.expanduser(identity_file)
+                
+                try:
+                    # 检查文件是否存在
+                    if os.path.exists(identity_file):
+                        key_obj = paramiko.RSAKey.from_private_key_file(
+                            identity_file, password=private_key_password
+                        )
+                        auth_kwargs['pkey'] = key_obj
+                        logger.debug(f"成功加载私钥文件: {identity_file}")
+                    else:
+                        logger.warning(f"私钥文件不存在: {identity_file}")
+                except Exception as e:
+                    logger.warning(f"无法加载私钥文件 {identity_file}: {e}")
+                    # 如果私钥加载失败，继续尝试其他认证方式
+            
+            # 如果没有设置私钥，尝试其他认证方式
+            if 'pkey' not in auth_kwargs:
+                if password:
+                    # 使用密码认证
+                    auth_kwargs['password'] = password
+                else:
+                    # 尝试使用默认SSH agent和密钥
+                    auth_kwargs['look_for_keys'] = True
+                    auth_kwargs['allow_agent'] = True
+            
+            # 在线程池中执行连接
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, lambda: self.client.connect(**auth_kwargs))
+            
+            # 启用keep-alive
+            transport = self.client.get_transport()
+            if transport:
+                # 启用TCP keep-alive
+                transport.set_keepalive(60)  # 60秒间隔
+                # 设置压缩
+                transport.use_compression(True)
+                logger.debug(f"已启用SSH keep-alive: {self.username}@{self.host}:{self.port}")
+            
+            self.status = ConnectionStatus.CONNECTED
+            self.error_message = None
+            logger.info(f"SSH config连接成功: {self.username}@{self.host}:{self.port} (config: {config_host})")
+            return True
+            
+        except Exception as e:
+            self.status = ConnectionStatus.ERROR
+            self.error_message = str(e)
+            logger.error(f"SSH config连接失败: {e}")
             return False
     
     async def disconnect(self):
@@ -288,6 +394,85 @@ class SSHManager:
         else:
             logger.warning(f"SSH连接失败: {connection_id}, 错误: {connection.error_message}")
             # 不抛出异常，返回连接ID，让调用者检查状态
+            return connection_id
+    
+    async def create_connection_from_config(self, config_host: str, 
+                                          username: Optional[str] = None,
+                                          password: Optional[str] = None,
+                                          private_key: Optional[str] = None,
+                                          private_key_password: Optional[str] = None) -> str:
+        """使用SSH config中的主机名创建连接
+        
+        Args:
+            config_host: SSH config中的主机名
+            username: 可选的用户名，如果提供将覆盖config中的设置
+            password: 可选的密码
+            private_key: 可选的私钥文件路径
+            private_key_password: 可选的私钥密码
+            
+        Returns:
+            连接ID
+        """
+        # 首先检查SSH config文件是否存在该主机配置
+        try:
+            ssh_config = paramiko.SSHConfig()
+            config_path = os.path.expanduser('~/.ssh/config')
+            with open(config_path, 'r') as f:
+                ssh_config.parse(f)
+            
+            host_config = ssh_config.lookup(config_host)
+            if not host_config or host_config.get('hostname') == config_host:
+                # 如果没有找到配置或者hostname就是主机名本身，说明配置不存在
+                logger.warning(f"SSH config中未找到主机 '{config_host}' 的配置")
+                # 使用传入的主机名作为fallback
+                actual_hostname = config_host
+                actual_username = username or "config_user"
+                actual_port = 22
+            else:
+                # 使用config中的配置
+                actual_hostname = host_config.get('hostname', config_host)
+                actual_username = username or host_config.get('user', 'config_user')
+                actual_port = int(host_config.get('port', 22))
+                
+        except FileNotFoundError:
+            logger.warning("~/.ssh/config 文件不存在，使用主机名作为直接连接")
+            actual_hostname = config_host
+            actual_username = username or "config_user"
+            actual_port = 22
+        except Exception as e:
+            logger.error(f"解析SSH config时出错: {e}")
+            actual_hostname = config_host
+            actual_username = username or "config_user"
+            actual_port = 22
+        
+        # 生成连接ID
+        connection_id = f"{actual_username}@{actual_hostname}:{actual_port}"
+        
+        # 如果连接已存在，先断开
+        if connection_id in self.connections:
+            await self.connections[connection_id].disconnect()
+        
+        # 创建新连接
+        connection = SSHConnection(actual_hostname, actual_username, actual_port)
+        
+        # 对于config连接，我们让SSH客户端自己处理配置解析
+        # 只传递明确的认证参数
+        success = await connection.connect_from_config(
+            config_host=config_host,
+            username=username,
+            password=password,
+            private_key=private_key,
+            private_key_password=private_key_password
+        )
+        
+        # 无论连接成功与否，都将连接对象保存（用于查询错误状态）
+        self.connections[connection_id] = connection
+        
+        if success:
+            logger.info(f"SSH config连接建立成功: {connection_id}")
+            return connection_id
+        else:
+            logger.warning(f"SSH config连接失败: {connection_id}, 错误: {connection.error_message}")
             return connection_id
     
     async def get_connection_status(self, connection_id: str) -> Dict:

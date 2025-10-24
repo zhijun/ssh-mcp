@@ -41,6 +41,23 @@
 
 重启Claude Desktop即可使用！
 
+**⭐ 新特性：无参数启动**
+
+MCP服务可以不传入任何SSH连接参数启动，等待大模型通过工具提供连接信息：
+
+```json
+{
+  "mcpServers": {
+    "ssh-mcp": {
+      "command": "uvx",
+      "args": ["ssh-agent-mcp@latest"]
+    }
+  }
+}
+```
+
+启动后，大模型可以使用 `ssh_connect` 或 `ssh_connect_by_name` 工具建立连接。
+
 ### 方法二：本地安装
 
 ```bash
@@ -90,9 +107,29 @@ pip install -e .
 
 ## 📝 使用方式
 
-### 方式一：纯命令行参数
+### 方式一：无参数启动（推荐）⭐
 
-最简单的方式，直接在Claude Desktop配置中指定所有参数：
+最灵活的方式，启动时不传入任何连接参数，由大模型动态管理连接：
+
+```json
+{
+  "mcpServers": {
+    "ssh-mcp": {
+      "command": "uvx",
+      "args": ["ssh-agent-mcp@latest"]
+    }
+  }
+}
+```
+
+**优势**：
+- 🔄 **动态连接管理**：大模型可以根据需要连接不同的服务器
+- 🛡️ **安全性更高**：不在配置文件中暴露敏感信息
+- 🎯 **灵活性强**：支持多服务器切换，适合复杂场景
+
+### 方式二：纯命令行参数
+
+直接在Claude Desktop配置中指定所有参数：
 
 ```json
 {
@@ -113,7 +150,7 @@ pip install -e .
 }
 ```
 
-### 方式二：命令行 + 配置文件
+### 方式三：命令行 + 配置文件
 
 结合配置文件和命令行参数：
 
@@ -151,12 +188,31 @@ pip install -e .
 }
 ```
 
+### 方式四：配置文件模式
+
+使用配置文件管理多个连接：
+
+```json
+{
+  "mcpServers": {
+    "ssh-mcp": {
+      "command": "uvx",
+      "args": [
+        "ssh-agent-mcp@latest",
+        "--config=/path/to/ssh_config.json",
+        "--connection=production-server"
+      ]
+    }
+  }
+}
+```
+
 ## 🔧 命令行参数
 
 | 参数 | 描述 | 必需 | 示例 |
 |------|------|------|------|
-| `--host` | SSH服务器地址 | 是 | `192.168.1.100` |
-| `--user`, `--username` | SSH用户名 | 是 | `root` |
+| `--host` | SSH服务器地址 | 否* | `192.168.1.100` |
+| `--user`, `--username` | SSH用户名 | 否* | `root` |
 | `--port` | SSH端口 | 否 | `22` (默认) |
 | `--password` | SSH密码 | 否 | `your_password` |
 | `--key`, `--private-key` | 私钥文件路径 | 否 | `/home/user/.ssh/id_rsa` |
@@ -167,6 +223,10 @@ pip install -e .
 | `--max-chars` | 最大输出字符数 | 否 | `none` (默认) |
 | `--log-level` | 日志级别 | 否 | `INFO` (默认) |
 | `--auto-connect` | 启动时自动连接 | 否 | - |
+
+**注意**：
+- `*` 标记的参数在使用配置文件或无参数启动模式时不是必需的
+- 无参数启动时，所有连接参数都是可选的，MCP服务将等待大模型通过工具提供连接信息
 
 ## 📋 配置文件格式
 
@@ -333,14 +393,14 @@ pip install -e .
 向交互式会话发送输入
 - **参数**:
   - `session_id` (必需): 交互式会话ID
-  - `input` (必需): 要发送的输入内容
+  - `input_text` (必需): 要发送的输入内容
 - **示例**:
 ```json
 {
   "name": "ssh_send_input",
   "arguments": {
     "session_id": "session-uuid",
-    "input": "password123\n"
+    "input_text": "password123\n"
   }
 }
 ```
@@ -389,6 +449,30 @@ pip install -e .
 }
 ```
 
+#### 20. ssh_connect_by_config_host ⭐ 新功能
+使用SSH config文件中的主机名建立连接
+- **参数**:
+  - `config_host` (必需): SSH config文件中的主机名
+  - `username` (可选): 可选用户名，覆盖config中的设置
+  - `password` (可选): 可选密码
+  - `private_key` (可选): 可选私钥文件路径
+  - `private_key_password` (可选): 可选私钥密码
+- **示例**:
+```json
+{
+  "name": "ssh_connect_by_config_host",
+  "arguments": {
+    "config_host": "my-server"
+  }
+}
+```
+
+**优势**：
+- 🎯 **简化配置**：直接使用~/.ssh/config中已配置的主机
+- 🔗 **自动解析**：SSH客户端自动处理主机名、端口、用户等配置
+- 🛡️ **安全性**：利用SSH config的现有安全配置
+- 📦 **零配置**：无需额外配置文件，直接使用标准SSH配置
+
 ## 📖 使用示例
 
 ### 启动MCP服务
@@ -396,7 +480,56 @@ pip install -e .
 python main.py
 ```
 
-### 🎯 推荐工作流程（使用配置文件）
+### 🌟 无参数启动工作流程（推荐）
+
+**适用场景**：动态连接管理，多服务器操作，安全性要求高的环境
+
+1. **手动建立连接**:
+```json
+{
+  "name": "ssh_connect",
+  "arguments": {
+    "host": "192.168.1.100",
+    "username": "admin",
+    "password": "secure_password"
+  }
+}
+```
+
+2. **查看连接状态**:
+```json
+{
+  "name": "ssh_list_connections",
+  "arguments": {}
+}
+```
+
+3. **执行命令**:
+```json
+{
+  "name": "ssh_execute",
+  "arguments": {
+    "connection_id": "admin@192.168.1.100:22",
+    "command": "systemctl status nginx"
+  }
+}
+```
+
+4. **连接其他服务器**:
+```json
+{
+  "name": "ssh_connect",
+  "arguments": {
+    "host": "prod.example.com",
+    "username": "root",
+    "private_key": "/home/user/.ssh/id_rsa"
+  }
+}
+```
+
+### 🎯 配置文件工作流程
+
+**适用场景**：固定服务器环境，批量操作，团队协作
 
 1. **查看配置的连接**:
 ```json
@@ -436,6 +569,83 @@ python main.py
   }
 }
 ```
+
+### 🏠 SSH Config工作流程 ⭐ 新功能
+
+**适用场景**：已有SSH config配置，利用标准SSH配置文件
+
+假设你的 `~/.ssh/config` 文件中有以下配置：
+
+```bash
+Host my-server
+    HostName 192.168.1.100
+    User admin
+    Port 22
+    IdentityFile ~/.ssh/id_rsa
+
+Host production
+    HostName prod.example.com
+    User root
+    Port 2222
+    IdentityFile ~/.ssh/prod_key
+```
+
+1. **使用SSH config主机名建立连接**:
+```json
+{
+  "name": "ssh_connect_by_config_host",
+  "arguments": {
+    "config_host": "my-server"
+  }
+}
+```
+
+2. **覆盖config中的用户名**:
+```json
+{
+  "name": "ssh_connect_by_config_host",
+  "arguments": {
+    "config_host": "production",
+    "username": "deploy"
+  }
+}
+```
+
+3. **使用密码覆盖config中的私钥认证**:
+```json
+{
+  "name": "ssh_connect_by_config_host",
+  "arguments": {
+    "config_host": "my-server",
+    "password": "temporary_password"
+  }
+}
+```
+
+4. **查看连接状态**:
+```json
+{
+  "name": "ssh_status",
+  "arguments": {}
+}
+```
+
+5. **执行命令**:
+```json
+{
+  "name": "ssh_execute",
+  "arguments": {
+    "connection_id": "my-server",
+    "command": "hostname"
+  }
+}
+```
+
+**优势**：
+- 🎯 **零配置**：直接使用已有的SSH config配置
+- 🔗 **自动解析**：自动处理主机名、端口、用户名、私钥等
+- 🛡️ **安全性**：利用SSH config的现有安全设置
+- 📦 **标准化**：遵循SSH标准配置约定
 
 ### 🚀 自动连接工作流程
 
@@ -513,7 +723,7 @@ python main.py
   "name": "ssh_send_input",
   "arguments": {
     "session_id": "返回的会话UUID",
-    "input": "ls -la\n"
+    "input_text": "ls -la\n"
   }
 }
 ```
@@ -557,7 +767,7 @@ python main.py
   "name": "ssh_send_input",
   "arguments": {
     "session_id": "session_uuid",
-    "input": "your_password\n"
+    "input_text": "your_password\n"
   }
 }
 
@@ -566,7 +776,7 @@ python main.py
   "name": "ssh_send_input",
   "arguments": {
     "session_id": "session_uuid",
-    "input": "systemctl status nginx\n"
+    "input_text": "systemctl status nginx\n"
   }
 }
 ```
@@ -587,7 +797,7 @@ python main.py
   "name": "ssh_send_input",
   "arguments": {
     "session_id": "session_uuid",
-    "input": "import os\nprint(os.getcwd())\n"
+    "input_text": "import os\nprint(os.getcwd())\n"
   }
 }
 ```
@@ -610,7 +820,7 @@ python main.py
   "name": "ssh_send_input",
   "arguments": {
     "session_id": "session_uuid",
-    "input": "i"
+    "input_text": "i"
   }
 }
 
@@ -619,7 +829,7 @@ python main.py
   "name": "ssh_send_input",
   "arguments": {
     "session_id": "session_uuid",
-    "input": "127.0.0.1 localhost\n"
+    "input_text": "127.0.0.1 localhost\n"
   }
 }
 
@@ -628,7 +838,7 @@ python main.py
   "name": "ssh_send_input",
   "arguments": {
     "session_id": "session_uuid",
-    "input": "\u001b:wq\n"
+    "input_text": "\u001b:wq\n"
   }
 }
 ```
@@ -649,7 +859,7 @@ python main.py
   "name": "ssh_send_input",
   "arguments": {
     "session_id": "session_uuid",
-    "input": "database_password\n"
+    "input_text": "database_password\n"
   }
 }
 
@@ -658,7 +868,7 @@ python main.py
   "name": "ssh_send_input",
   "arguments": {
     "session_id": "session_uuid",
-    "input": "SHOW DATABASES;\n"
+    "input_text": "SHOW DATABASES;\n"
   }
 }
 ```
