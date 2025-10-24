@@ -641,7 +641,7 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> CallToolResu
                 connections = config_loader.get_connections_by_tag(params.filter_tag)
                 title = f"配置文件中的SSH连接 (标签: {params.filter_tag})"
             else:
-                connections = config.config.connections
+                connections = config.connections
                 title = "配置文件中的所有SSH连接"
             
             if not connections:
