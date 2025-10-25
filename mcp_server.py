@@ -38,6 +38,19 @@ ssh_manager = SSHManager()
 # 创建MCP服务器
 server = Server("ssh-agent-mcp")
 
+def _format_file_size(size_bytes: int) -> str:
+    """格式化文件大小显示"""
+    if size_bytes == 0:
+        return "0 B"
+    
+    size_names = ["B", "KB", "MB", "GB", "TB"]
+    i = 0
+    while size_bytes >= 1024 and i < len(size_names) - 1:
+        size_bytes /= 1024.0
+        i += 1
+    
+    return f"{size_bytes:.1f} {size_names[i]}"
+
 class SSHConnectionParams(BaseModel):
     host: str = Field(description="SSH服务器主机名或IP地址")
     username: str = Field(description="SSH用户名")
@@ -90,6 +103,39 @@ class GetInteractiveOutputParams(BaseModel):
 
 class TerminateInteractiveParams(BaseModel):
     session_id: str = Field(description="要终止的交互式会话ID")
+
+class UploadFileParams(BaseModel):
+    connection_id: str = Field(description="SSH连接ID")
+    local_path: str = Field(description="本地文件路径")
+    remote_path: str = Field(description="远程文件路径")
+
+class DownloadFileParams(BaseModel):
+    connection_id: str = Field(description="SSH连接ID")
+    remote_path: str = Field(description="远程文件路径")
+    local_path: str = Field(description="本地文件路径")
+
+class ListRemoteDirectoryParams(BaseModel):
+    connection_id: str = Field(description="SSH连接ID")
+    remote_path: str = Field(default=".", description="远程目录路径，默认为当前目录")
+
+class CreateRemoteDirectoryParams(BaseModel):
+    connection_id: str = Field(description="SSH连接ID")
+    remote_path: str = Field(description="要创建的远程目录路径")
+    mode: int = Field(default=0o755, description="目录权限，默认为755")
+    parents: bool = Field(default=True, description="是否递归创建父目录，默认为True")
+
+class RemoveRemoteFileParams(BaseModel):
+    connection_id: str = Field(description="SSH连接ID")
+    remote_path: str = Field(description="要删除的远程文件或目录路径")
+
+class GetRemoteFileInfoParams(BaseModel):
+    connection_id: str = Field(description="SSH连接ID")
+    remote_path: str = Field(description="远程文件或目录路径")
+
+class RenameRemotePathParams(BaseModel):
+    connection_id: str = Field(description="SSH连接ID")
+    old_path: str = Field(description="原始路径")
+    new_path: str = Field(description="新路径")
 
 @server.list_tools()
 async def handle_list_tools() -> List[Tool]:
@@ -312,6 +358,95 @@ async def handle_list_tools() -> List[Tool]:
                     "private_key_password": {"type": "string", "description": "可选私钥密码"}
                 },
                 "required": ["config_host"]
+            }
+        ),
+        Tool(
+            name="ssh_upload_file",
+            description="上传文件到远程服务器",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "connection_id": {"type": "string", "description": "SSH连接ID"},
+                    "local_path": {"type": "string", "description": "本地文件路径"},
+                    "remote_path": {"type": "string", "description": "远程文件路径"}
+                },
+                "required": ["connection_id", "local_path", "remote_path"]
+            }
+        ),
+        Tool(
+            name="ssh_download_file",
+            description="从远程服务器下载文件",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "connection_id": {"type": "string", "description": "SSH连接ID"},
+                    "remote_path": {"type": "string", "description": "远程文件路径"},
+                    "local_path": {"type": "string", "description": "本地文件路径"}
+                },
+                "required": ["connection_id", "remote_path", "local_path"]
+            }
+        ),
+        Tool(
+            name="ssh_list_remote_directory",
+            description="列出远程目录内容",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "connection_id": {"type": "string", "description": "SSH连接ID"},
+                    "remote_path": {"type": "string", "description": "远程目录路径", "default": "."}
+                },
+                "required": ["connection_id"]
+            }
+        ),
+        Tool(
+            name="ssh_create_remote_directory",
+            description="在远程服务器上创建目录",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "connection_id": {"type": "string", "description": "SSH连接ID"},
+                    "remote_path": {"type": "string", "description": "要创建的远程目录路径"},
+                    "mode": {"type": "integer", "description": "目录权限", "default": 493},
+                    "parents": {"type": "boolean", "description": "是否递归创建父目录", "default": True}
+                },
+                "required": ["connection_id", "remote_path"]
+            }
+        ),
+        Tool(
+            name="ssh_remove_remote_file",
+            description="删除远程文件或目录",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "connection_id": {"type": "string", "description": "SSH连接ID"},
+                    "remote_path": {"type": "string", "description": "要删除的远程文件或目录路径"}
+                },
+                "required": ["connection_id", "remote_path"]
+            }
+        ),
+        Tool(
+            name="ssh_get_remote_file_info",
+            description="获取远程文件或目录信息",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "connection_id": {"type": "string", "description": "SSH连接ID"},
+                    "remote_path": {"type": "string", "description": "远程文件或目录路径"}
+                },
+                "required": ["connection_id", "remote_path"]
+            }
+        ),
+        Tool(
+            name="ssh_rename_remote_path",
+            description="重命名远程文件或目录",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "connection_id": {"type": "string", "description": "SSH连接ID"},
+                    "old_path": {"type": "string", "description": "原始路径"},
+                    "new_path": {"type": "string", "description": "新路径"}
+                },
+                "required": ["connection_id", "old_path", "new_path"]
             }
         )
     ]
@@ -940,6 +1075,290 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> CallToolResu
                     content=[TextContent(
                         type="text",
                         text=f"SSH config连接失败: {str(e)}"
+                    )],
+                    isError=True
+                )
+            
+        # SFTP 工具处理
+        elif name == "ssh_upload_file":
+            params = UploadFileParams(**arguments)
+            try:
+                result = await ssh_manager.upload_file(
+                    connection_id=params.connection_id,
+                    local_path=params.local_path,
+                    remote_path=params.remote_path
+                )
+                
+                output = f"文件上传操作结果:\n"
+                output += f"连接ID: {params.connection_id}\n"
+                output += f"本地路径: {params.local_path}\n"
+                output += f"远程路径: {params.remote_path}\n"
+                output += f"成功: {result['success']}\n"
+                
+                if result['success']:
+                    output += f"本地大小: {result['local_size']} 字节\n"
+                    output += f"远程大小: {result['remote_size']} 字节\n"
+                    if 'warning' in result:
+                        output += f"警告: {result['warning']}\n"
+                    output += f"消息: {result['message']}\n"
+                else:
+                    output += f"错误: {result['error']}\n"
+                
+                return CallToolResult(
+                    content=[TextContent(
+                        type="text",
+                        text=output
+                    )],
+                    isError=not result['success']
+                )
+            except Exception as e:
+                return CallToolResult(
+                    content=[TextContent(
+                        type="text",
+                        text=f"上传文件失败: {str(e)}"
+                    )],
+                    isError=True
+                )
+        
+        elif name == "ssh_download_file":
+            params = DownloadFileParams(**arguments)
+            try:
+                result = await ssh_manager.download_file(
+                    connection_id=params.connection_id,
+                    remote_path=params.remote_path,
+                    local_path=params.local_path
+                )
+                
+                output = f"文件下载操作结果:\n"
+                output += f"连接ID: {params.connection_id}\n"
+                output += f"远程路径: {params.remote_path}\n"
+                output += f"本地路径: {params.local_path}\n"
+                output += f"成功: {result['success']}\n"
+                
+                if result['success']:
+                    output += f"远程大小: {result['remote_size']} 字节\n"
+                    output += f"本地大小: {result['local_size']} 字节\n"
+                    if 'warning' in result:
+                        output += f"警告: {result['warning']}\n"
+                    output += f"消息: {result['message']}\n"
+                else:
+                    output += f"错误: {result['error']}\n"
+                
+                return CallToolResult(
+                    content=[TextContent(
+                        type="text",
+                        text=output
+                    )],
+                    isError=not result['success']
+                )
+            except Exception as e:
+                return CallToolResult(
+                    content=[TextContent(
+                        type="text",
+                        text=f"下载文件失败: {str(e)}"
+                    )],
+                    isError=True
+                )
+        
+        elif name == "ssh_list_remote_directory":
+            params = ListRemoteDirectoryParams(**arguments)
+            try:
+                result = await ssh_manager.list_remote_directory(
+                    connection_id=params.connection_id,
+                    remote_path=params.remote_path
+                )
+                
+                if result['success']:
+                    output = f"远程目录列表:\n"
+                    output += f"连接ID: {params.connection_id}\n"
+                    output += f"路径: {result['path']}\n"
+                    output += f"总项目数: {result['total_count']}\n"
+                    output += f"目录数: {result['directory_count']}\n"
+                    output += f"文件数: {result['file_count']}\n\n"
+                    
+                    if result['directories']:
+                        output += "目录:\n"
+                        for directory in result['directories']:
+                            output += f"  📁 {directory['name']}/ (权限: {directory['permissions']}, 所有者: {directory['owner']})\n"
+                        output += "\n"
+                    
+                    if result['files']:
+                        output += "文件:\n"
+                        for file in result['files']:
+                            size_str = _format_file_size(file['size'])
+                            modified_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(file['modified']))
+                            output += f"  📄 {file['name']} (大小: {size_str}, 权限: {file['permissions']}, 修改时间: {modified_time})\n"
+                    
+                    return CallToolResult(
+                        content=[TextContent(
+                            type="text",
+                            text=output
+                        )]
+                    )
+                else:
+                    return CallToolResult(
+                        content=[TextContent(
+                            type="text",
+                            text=f"列出远程目录失败: {result['error']}"
+                        )],
+                        isError=True
+                    )
+            except Exception as e:
+                return CallToolResult(
+                    content=[TextContent(
+                        type="text",
+                        text=f"列出远程目录失败: {str(e)}"
+                    )],
+                    isError=True
+                )
+        
+        elif name == "ssh_create_remote_directory":
+            params = CreateRemoteDirectoryParams(**arguments)
+            try:
+                result = await ssh_manager.create_remote_directory(
+                    connection_id=params.connection_id,
+                    remote_path=params.remote_path,
+                    mode=params.mode,
+                    parents=params.parents
+                )
+                
+                output = f"创建远程目录结果:\n"
+                output += f"连接ID: {params.connection_id}\n"
+                output += f"路径: {params.remote_path}\n"
+                output += f"成功: {result['success']}\n"
+                
+                if result['success']:
+                    output += f"权限: {result['mode']}\n"
+                    output += f"消息: {result['message']}\n"
+                else:
+                    output += f"错误: {result['error']}\n"
+                
+                return CallToolResult(
+                    content=[TextContent(
+                        type="text",
+                        text=output
+                    )],
+                    isError=not result['success']
+                )
+            except Exception as e:
+                return CallToolResult(
+                    content=[TextContent(
+                        type="text",
+                        text=f"创建远程目录失败: {str(e)}"
+                    )],
+                    isError=True
+                )
+        
+        elif name == "ssh_remove_remote_file":
+            params = RemoveRemoteFileParams(**arguments)
+            try:
+                result = await ssh_manager.remove_remote_file(
+                    connection_id=params.connection_id,
+                    remote_path=params.remote_path
+                )
+                
+                output = f"删除远程文件/目录结果:\n"
+                output += f"连接ID: {params.connection_id}\n"
+                output += f"路径: {params.remote_path}\n"
+                output += f"成功: {result['success']}\n"
+                
+                if result['success']:
+                    output += f"类型: {result['type']}\n"
+                    output += f"消息: {result['message']}\n"
+                else:
+                    output += f"错误: {result['error']}\n"
+                
+                return CallToolResult(
+                    content=[TextContent(
+                        type="text",
+                        text=output
+                    )],
+                    isError=not result['success']
+                )
+            except Exception as e:
+                return CallToolResult(
+                    content=[TextContent(
+                        type="text",
+                        text=f"删除远程文件失败: {str(e)}"
+                    )],
+                    isError=True
+                )
+        
+        elif name == "ssh_get_remote_file_info":
+            params = GetRemoteFileInfoParams(**arguments)
+            try:
+                result = await ssh_manager.get_remote_file_info(
+                    connection_id=params.connection_id,
+                    remote_path=params.remote_path
+                )
+                
+                if result['success']:
+                    output = f"远程文件信息:\n"
+                    output += f"连接ID: {params.connection_id}\n"
+                    output += f"路径: {result['path']}\n"
+                    output += f"类型: {'目录' if result['is_directory'] else '文件'}\n"
+                    output += f"大小: {_format_file_size(result['size'])}\n"
+                    output += f"权限: {result['permissions']}\n"
+                    output += f"所有者: {result['owner']}\n"
+                    output += f"组: {result['group']}\n"
+                    output += f"修改时间: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(result['modified']))}\n"
+                    output += f"访问时间: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(result['accessed']))}\n"
+                    
+                    return CallToolResult(
+                        content=[TextContent(
+                            type="text",
+                            text=output
+                        )]
+                    )
+                else:
+                    return CallToolResult(
+                        content=[TextContent(
+                            type="text",
+                            text=f"获取远程文件信息失败: {result['error']}"
+                        )],
+                        isError=True
+                    )
+            except Exception as e:
+                return CallToolResult(
+                    content=[TextContent(
+                        type="text",
+                        text=f"获取远程文件信息失败: {str(e)}"
+                    )],
+                    isError=True
+                )
+        
+        elif name == "ssh_rename_remote_path":
+            params = RenameRemotePathParams(**arguments)
+            try:
+                result = await ssh_manager.rename_remote_path(
+                    connection_id=params.connection_id,
+                    old_path=params.old_path,
+                    new_path=params.new_path
+                )
+                
+                output = f"重命名远程路径结果:\n"
+                output += f"连接ID: {params.connection_id}\n"
+                output += f"原路径: {params.old_path}\n"
+                output += f"新路径: {params.new_path}\n"
+                output += f"成功: {result['success']}\n"
+                
+                if result['success']:
+                    output += f"消息: {result['message']}\n"
+                else:
+                    output += f"错误: {result['error']}\n"
+                
+                return CallToolResult(
+                    content=[TextContent(
+                        type="text",
+                        text=output
+                    )],
+                    isError=not result['success']
+                )
+            except Exception as e:
+                return CallToolResult(
+                    content=[TextContent(
+                        type="text",
+                        text=f"重命名远程路径失败: {str(e)}"
                     )],
                     isError=True
                 )

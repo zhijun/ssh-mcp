@@ -1097,3 +1097,418 @@ class SSHManager:
             logger.error(f"收集交互式会话输出失败: {session_id}, 错误: {str(e)}")
             session.status = InteractiveStatus.FAILED
             session.end_time = time.time()
+    
+    # SFTP 功能
+    async def upload_file(self, connection_id: str, local_path: str, remote_path: str, 
+                         progress_callback: Optional[callable] = None) -> Dict:
+        """上传文件到远程服务器"""
+        if connection_id not in self.connections:
+            raise Exception("连接不存在")
+        
+        connection = self.connections[connection_id]
+        if connection.status != ConnectionStatus.CONNECTED:
+            raise Exception("连接未建立")
+        
+        try:
+            # 创建SFTP客户端
+            loop = asyncio.get_event_loop()
+            sftp_client = await loop.run_in_executor(None, lambda: connection.client.open_sftp())
+            
+            try:
+                # 获取本地文件大小
+                local_file_size = await loop.run_in_executor(None, lambda: os.path.getsize(local_path))
+                
+                # 上传文件
+                def progress_callback_wrapper(transferred, total):
+                    if progress_callback:
+                        progress_callback(transferred, total)
+                
+                await loop.run_in_executor(
+                    None, 
+                    lambda: sftp_client.put(local_path, remote_path, callback=progress_callback_wrapper)
+                )
+                
+                # 验证上传结果
+                remote_file_size = (await loop.run_in_executor(
+                    None, lambda: sftp_client.stat(remote_path)
+                )).st_size
+                
+                result = {
+                    "success": True,
+                    "local_path": local_path,
+                    "remote_path": remote_path,
+                    "local_size": local_file_size,
+                    "remote_size": remote_file_size,
+                    "message": f"文件上传成功: {local_path} -> {remote_path}"
+                }
+                
+                if local_file_size != remote_file_size:
+                    result["warning"] = "文件大小不匹配，可能上传不完整"
+                
+                logger.info(f"SFTP上传成功: {local_path} -> {remote_path}")
+                return result
+                
+            finally:
+                await loop.run_in_executor(None, sftp_client.close)
+                
+        except Exception as e:
+            error_msg = f"SFTP上传失败: {str(e)}"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "local_path": local_path,
+                "remote_path": remote_path,
+                "error": error_msg
+            }
+    
+    async def download_file(self, connection_id: str, remote_path: str, local_path: str,
+                           progress_callback: Optional[callable] = None) -> Dict:
+        """从远程服务器下载文件"""
+        if connection_id not in self.connections:
+            raise Exception("连接不存在")
+        
+        connection = self.connections[connection_id]
+        if connection.status != ConnectionStatus.CONNECTED:
+            raise Exception("连接未建立")
+        
+        try:
+            # 创建SFTP客户端
+            loop = asyncio.get_event_loop()
+            sftp_client = await loop.run_in_executor(None, lambda: connection.client.open_sftp())
+            
+            try:
+                # 获取远程文件大小
+                remote_file_size = (await loop.run_in_executor(
+                    None, lambda: sftp_client.stat(remote_path)
+                )).st_size
+                
+                # 确保本地目录存在
+                local_dir = os.path.dirname(local_path)
+                if local_dir:
+                    await loop.run_in_executor(None, lambda: os.makedirs(local_dir, exist_ok=True))
+                
+                # 下载文件
+                def progress_callback_wrapper(transferred, total):
+                    if progress_callback:
+                        progress_callback(transferred, total)
+                
+                await loop.run_in_executor(
+                    None, 
+                    lambda: sftp_client.get(remote_path, local_path, callback=progress_callback_wrapper)
+                )
+                
+                # 验证下载结果
+                local_file_size = await loop.run_in_executor(None, lambda: os.path.getsize(local_path))
+                
+                result = {
+                    "success": True,
+                    "remote_path": remote_path,
+                    "local_path": local_path,
+                    "remote_size": remote_file_size,
+                    "local_size": local_file_size,
+                    "message": f"文件下载成功: {remote_path} -> {local_path}"
+                }
+                
+                if remote_file_size != local_file_size:
+                    result["warning"] = "文件大小不匹配，可能下载不完整"
+                
+                logger.info(f"SFTP下载成功: {remote_path} -> {local_path}")
+                return result
+                
+            finally:
+                await loop.run_in_executor(None, sftp_client.close)
+                
+        except Exception as e:
+            error_msg = f"SFTP下载失败: {str(e)}"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "remote_path": remote_path,
+                "local_path": local_path,
+                "error": error_msg
+            }
+    
+    async def list_remote_directory(self, connection_id: str, remote_path: str = ".") -> Dict:
+        """列出远程目录内容"""
+        if connection_id not in self.connections:
+            raise Exception("连接不存在")
+        
+        connection = self.connections[connection_id]
+        if connection.status != ConnectionStatus.CONNECTED:
+            raise Exception("连接未建立")
+        
+        try:
+            # 创建SFTP客户端
+            loop = asyncio.get_event_loop()
+            sftp_client = await loop.run_in_executor(None, lambda: connection.client.open_sftp())
+            
+            try:
+                # 列出目录内容
+                file_list = await loop.run_in_executor(None, lambda: sftp_client.listdir_attr(remote_path))
+                
+                # 格式化结果
+                files = []
+                directories = []
+                
+                for file_attr in file_list:
+                    item = {
+                        "name": file_attr.filename,
+                        "size": file_attr.st_size,
+                        "modified": file_attr.st_mtime,
+                        "permissions": oct(file_attr.st_mode)[-3:],
+                        "is_directory": file_attr.st_mode is not None and (file_attr.st_mode & 0o040000) != 0,
+                        "owner": file_attr.st_uid,
+                        "group": file_attr.st_gid
+                    }
+                    
+                    if item["is_directory"]:
+                        directories.append(item)
+                    else:
+                        files.append(item)
+                
+                result = {
+                    "success": True,
+                    "path": remote_path,
+                    "directories": sorted(directories, key=lambda x: x["name"]),
+                    "files": sorted(files, key=lambda x: x["name"]),
+                    "total_count": len(file_list),
+                    "directory_count": len(directories),
+                    "file_count": len(files)
+                }
+                
+                logger.info(f"列出远程目录成功: {remote_path} ({len(file_list)} 项)")
+                return result
+                
+            finally:
+                await loop.run_in_executor(None, sftp_client.close)
+                
+        except Exception as e:
+            error_msg = f"列出远程目录失败: {str(e)}"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "path": remote_path,
+                "error": error_msg
+            }
+    
+    async def create_remote_directory(self, connection_id: str, remote_path: str, 
+                                    mode: int = 0o755, parents: bool = True) -> Dict:
+        """在远程服务器上创建目录"""
+        if connection_id not in self.connections:
+            raise Exception("连接不存在")
+        
+        connection = self.connections[connection_id]
+        if connection.status != ConnectionStatus.CONNECTED:
+            raise Exception("连接未建立")
+        
+        try:
+            # 创建SFTP客户端
+            loop = asyncio.get_event_loop()
+            sftp_client = await loop.run_in_executor(None, lambda: connection.client.open_sftp())
+            
+            try:
+                if parents:
+                    # 递归创建父目录
+                    parent_path = os.path.dirname(remote_path.rstrip('/'))
+                    if parent_path and parent_path != remote_path:
+                        try:
+                            await loop.run_in_executor(None, lambda: sftp_client.stat(parent_path))
+                        except FileNotFoundError:
+                            # 父目录不存在，递归创建
+                            parent_result = await self.create_remote_directory(
+                                connection_id, parent_path, mode, parents
+                            )
+                            if not parent_result["success"]:
+                                return parent_result
+                
+                # 创建目录
+                await loop.run_in_executor(None, lambda: sftp_client.mkdir(remote_path, mode))
+                
+                result = {
+                    "success": True,
+                    "path": remote_path,
+                    "mode": oct(mode),
+                    "message": f"远程目录创建成功: {remote_path}"
+                }
+                
+                logger.info(f"创建远程目录成功: {remote_path}")
+                return result
+                
+            finally:
+                await loop.run_in_executor(None, sftp_client.close)
+                
+        except Exception as e:
+            error_msg = f"创建远程目录失败: {str(e)}"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "path": remote_path,
+                "error": error_msg
+            }
+    
+    async def remove_remote_file(self, connection_id: str, remote_path: str) -> Dict:
+        """删除远程文件"""
+        if connection_id not in self.connections:
+            raise Exception("连接不存在")
+        
+        connection = self.connections[connection_id]
+        if connection.status != ConnectionStatus.CONNECTED:
+            raise Exception("连接未建立")
+        
+        try:
+            # 创建SFTP客户端
+            loop = asyncio.get_event_loop()
+            sftp_client = await loop.run_in_executor(None, lambda: connection.client.open_sftp())
+            
+            try:
+                # 检查是否为目录
+                try:
+                    file_attr = await loop.run_in_executor(None, lambda: sftp_client.stat(remote_path))
+                    is_directory = file_attr.st_mode is not None and (file_attr.st_mode & 0o040000) != 0
+                except FileNotFoundError:
+                    return {
+                        "success": False,
+                        "path": remote_path,
+                        "error": "文件或目录不存在"
+                    }
+                
+                if is_directory:
+                    # 删除目录及其内容
+                    await self._remove_remote_directory_recursive(sftp_client, remote_path, loop)
+                    operation = "目录"
+                else:
+                    # 删除文件
+                    await loop.run_in_executor(None, lambda: sftp_client.remove(remote_path))
+                    operation = "文件"
+                
+                result = {
+                    "success": True,
+                    "path": remote_path,
+                    "type": operation,
+                    "message": f"远程{operation}删除成功: {remote_path}"
+                }
+                
+                logger.info(f"删除远程{operation}成功: {remote_path}")
+                return result
+                
+            finally:
+                await loop.run_in_executor(None, sftp_client.close)
+                
+        except Exception as e:
+            error_msg = f"删除远程文件失败: {str(e)}"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "path": remote_path,
+                "error": error_msg
+            }
+    
+    async def _remove_remote_directory_recursive(self, sftp_client, remote_path: str, loop):
+        """递归删除远程目录及其内容"""
+        try:
+            # 列出目录内容
+            file_list = await loop.run_in_executor(None, lambda: sftp_client.listdir_attr(remote_path))
+            
+            # 删除所有子项
+            for file_attr in file_list:
+                item_path = f"{remote_path.rstrip('/')}/{file_attr.filename}"
+                
+                if file_attr.st_mode is not None and (file_attr.st_mode & 0o040000) != 0:
+                    # 是目录，递归删除
+                    await self._remove_remote_directory_recursive(sftp_client, item_path, loop)
+                else:
+                    # 是文件，直接删除
+                    await loop.run_in_executor(None, lambda: sftp_client.remove(item_path))
+            
+            # 删除空目录
+            await loop.run_in_executor(None, lambda: sftp_client.rmdir(remote_path))
+            
+        except Exception as e:
+            logger.error(f"递归删除目录失败: {remote_path}, 错误: {str(e)}")
+            raise
+    
+    async def get_remote_file_info(self, connection_id: str, remote_path: str) -> Dict:
+        """获取远程文件信息"""
+        if connection_id not in self.connections:
+            raise Exception("连接不存在")
+        
+        connection = self.connections[connection_id]
+        if connection.status != ConnectionStatus.CONNECTED:
+            raise Exception("连接未建立")
+        
+        try:
+            # 创建SFTP客户端
+            loop = asyncio.get_event_loop()
+            sftp_client = await loop.run_in_executor(None, lambda: connection.client.open_sftp())
+            
+            try:
+                # 获取文件属性
+                file_attr = await loop.run_in_executor(None, lambda: sftp_client.stat(remote_path))
+                
+                result = {
+                    "success": True,
+                    "path": remote_path,
+                    "size": file_attr.st_size,
+                    "modified": file_attr.st_mtime,
+                    "accessed": file_attr.st_atime,
+                    "permissions": oct(file_attr.st_mode)[-3:],
+                    "is_directory": file_attr.st_mode is not None and (file_attr.st_mode & 0o040000) != 0,
+                    "owner": file_attr.st_uid,
+                    "group": file_attr.st_gid
+                }
+                
+                logger.debug(f"获取远程文件信息成功: {remote_path}")
+                return result
+                
+            finally:
+                await loop.run_in_executor(None, sftp_client.close)
+                
+        except Exception as e:
+            error_msg = f"获取远程文件信息失败: {str(e)}"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "path": remote_path,
+                "error": error_msg
+            }
+    
+    async def rename_remote_path(self, connection_id: str, old_path: str, new_path: str) -> Dict:
+        """重命名远程文件或目录"""
+        if connection_id not in self.connections:
+            raise Exception("连接不存在")
+        
+        connection = self.connections[connection_id]
+        if connection.status != ConnectionStatus.CONNECTED:
+            raise Exception("连接未建立")
+        
+        try:
+            # 创建SFTP客户端
+            loop = asyncio.get_event_loop()
+            sftp_client = await loop.run_in_executor(None, lambda: connection.client.open_sftp())
+            
+            try:
+                # 重命名
+                await loop.run_in_executor(None, lambda: sftp_client.rename(old_path, new_path))
+                
+                result = {
+                    "success": True,
+                    "old_path": old_path,
+                    "new_path": new_path,
+                    "message": f"远程路径重命名成功: {old_path} -> {new_path}"
+                }
+                
+                logger.info(f"重命名远程路径成功: {old_path} -> {new_path}")
+                return result
+                
+            finally:
+                await loop.run_in_executor(None, sftp_client.close)
+                
+        except Exception as e:
+            error_msg = f"重命名远程路径失败: {str(e)}"
+            logger.error(error_msg)
+            return {
+                "success": False,
+                "old_path": old_path,
+                "new_path": new_path,
+                "error": error_msg
+            }

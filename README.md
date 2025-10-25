@@ -15,6 +15,8 @@
 - **📊 命令生命周期管理**: 启动、监控、终止和清理异步命令和交互式会话
 - **📈 连接状态查询**: 实时查询连接状态和管理连接
 - **🚀 自动连接**: 支持启动时自动连接指定的服务器
+- **📁 SFTP文件传输**: 支持文件上传、下载和目录操作
+- **📂 远程文件管理**: 支持远程目录浏览、创建、删除和重命名
 
 ## 🚀 快速开始
 
@@ -472,6 +474,130 @@ pip install -e .
 - 🔗 **自动解析**：SSH客户端自动处理主机名、端口、用户等配置
 - 🛡️ **安全性**：利用SSH config的现有安全配置
 - 📦 **零配置**：无需额外配置文件，直接使用标准SSH配置
+
+## 📁 SFTP文件传输工具 ⭐ 新功能
+
+#### 21. ssh_upload_file
+上传文件到远程服务器
+- **参数**:
+  - `connection_id` (必需): SSH连接ID
+  - `local_path` (必需): 本地文件路径
+  - `remote_path` (必需): 远程文件路径
+- **示例**:
+```json
+{
+  "name": "ssh_upload_file",
+  "arguments": {
+    "connection_id": "connection-uuid",
+    "local_path": "/path/to/local/file.txt",
+    "remote_path": "/remote/path/file.txt"
+  }
+}
+```
+
+#### 22. ssh_download_file
+从远程服务器下载文件
+- **参数**:
+  - `connection_id` (必需): SSH连接ID
+  - `remote_path` (必需): 远程文件路径
+  - `local_path` (必需): 本地文件路径
+- **示例**:
+```json
+{
+  "name": "ssh_download_file",
+  "arguments": {
+    "connection_id": "connection-uuid",
+    "remote_path": "/remote/path/file.txt",
+    "local_path": "/path/to/local/downloaded_file.txt"
+  }
+}
+```
+
+#### 23. ssh_list_remote_directory
+列出远程目录内容
+- **参数**:
+  - `connection_id` (必需): SSH连接ID
+  - `remote_path` (可选): 远程目录路径，默认为当前目录
+- **示例**:
+```json
+{
+  "name": "ssh_list_remote_directory",
+  "arguments": {
+    "connection_id": "connection-uuid",
+    "remote_path": "/home/user/documents"
+  }
+}
+```
+
+#### 24. ssh_create_remote_directory
+在远程服务器上创建目录
+- **参数**:
+  - `connection_id` (必需): SSH连接ID
+  - `remote_path` (必需): 要创建的远程目录路径
+  - `mode` (可选): 目录权限，默认为755
+  - `parents` (可选): 是否递归创建父目录，默认为true
+- **示例**:
+```json
+{
+  "name": "ssh_create_remote_directory",
+  "arguments": {
+    "connection_id": "connection-uuid",
+    "remote_path": "/remote/new/directory",
+    "mode": 755,
+    "parents": true
+  }
+}
+```
+
+#### 25. ssh_remove_remote_file
+删除远程文件或目录
+- **参数**:
+  - `connection_id` (必需): SSH连接ID
+  - `remote_path` (必需): 要删除的远程文件或目录路径
+- **示例**:
+```json
+{
+  "name": "ssh_remove_remote_file",
+  "arguments": {
+    "connection_id": "connection-uuid",
+    "remote_path": "/remote/path/to/delete"
+  }
+}
+```
+
+#### 26. ssh_get_remote_file_info
+获取远程文件或目录信息
+- **参数**:
+  - `connection_id` (必需): SSH连接ID
+  - `remote_path` (必需): 远程文件或目录路径
+- **示例**:
+```json
+{
+  "name": "ssh_get_remote_file_info",
+  "arguments": {
+    "connection_id": "connection-uuid",
+    "remote_path": "/remote/path/file.txt"
+  }
+}
+```
+
+#### 27. ssh_rename_remote_path
+重命名远程文件或目录
+- **参数**:
+  - `connection_id` (必需): SSH连接ID
+  - `old_path` (必需): 原始路径
+  - `new_path` (必需): 新路径
+- **示例**:
+```json
+{
+  "name": "ssh_rename_remote_path",
+  "arguments": {
+    "connection_id": "connection-uuid",
+    "old_path": "/remote/old_name.txt",
+    "new_path": "/remote/new_name.txt"
+  }
+}
+```
 
 ## 📖 使用示例
 
@@ -1087,6 +1213,118 @@ sshagent/
 ### 更多配置示例
 
 查看 `claude_desktop_config_examples.json` 文件获取更多配置示例。
+
+### 📁 SFTP文件传输示例
+
+**1. 上传文件到远程服务器**:
+```json
+{
+  "name": "ssh_upload_file",
+  "arguments": {
+    "connection_id": "user@server:22",
+    "local_path": "/home/user/documents/report.pdf",
+    "remote_path": "/remote/uploads/report.pdf"
+  }
+}
+```
+
+**2. 从远程服务器下载文件**:
+```json
+{
+  "name": "ssh_download_file",
+  "arguments": {
+    "connection_id": "user@server:22",
+    "remote_path": "/remote/data/backup.zip",
+    "local_path": "/home/user/downloads/backup.zip"
+  }
+}
+```
+
+**3. 浏览远程目录**:
+```json
+{
+  "name": "ssh_list_remote_directory",
+  "arguments": {
+    "connection_id": "user@server:22",
+    "remote_path": "/home/user/documents"
+  }
+}
+```
+
+**4. 创建远程目录**:
+```json
+{
+  "name": "ssh_create_remote_directory",
+  "arguments": {
+    "connection_id": "user@server:22",
+    "remote_path": "/remote/new/project",
+    "mode": 755,
+    "parents": true
+  }
+}
+```
+
+**5. 批量文件操作工作流**:
+```json
+// 1. 创建远程目录
+{
+  "name": "ssh_create_remote_directory",
+  "arguments": {
+    "connection_id": "user@server:22",
+    "remote_path": "/remote/backup/2024-01-15"
+  }
+}
+
+// 2. 上传多个文件
+{
+  "name": "ssh_upload_file",
+  "arguments": {
+    "connection_id": "user@server:22",
+    "local_path": "/home/user/data/file1.txt",
+    "remote_path": "/remote/backup/2024-01-15/file1.txt"
+  }
+}
+
+// 3. 列出上传的文件
+{
+  "name": "ssh_list_remote_directory",
+  "arguments": {
+    "connection_id": "user@server:22",
+    "remote_path": "/remote/backup/2024-01-15"
+  }
+}
+```
+
+**6. 远程文件管理**:
+```json
+// 获取文件信息
+{
+  "name": "ssh_get_remote_file_info",
+  "arguments": {
+    "connection_id": "user@server:22",
+    "remote_path": "/remote/logs/app.log"
+  }
+}
+
+// 重命名文件
+{
+  "name": "ssh_rename_remote_path",
+  "arguments": {
+    "connection_id": "user@server:22",
+    "old_path": "/remote/logs/app.log",
+    "new_path": "/remote/logs/app_backup.log"
+  }
+}
+
+// 删除旧文件
+{
+  "name": "ssh_remove_remote_file",
+  "arguments": {
+    "connection_id": "user@server:22",
+    "remote_path": "/remote/logs/old_app.log"
+  }
+}
+```
 
 ## 🚨 安全注意事项
 
