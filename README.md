@@ -121,4 +121,4 @@ The assistant can then connect using `ssh_connect` or `ssh_connect_by_name`.
 
 ## License
 
-MIT License.
+MIT License. See [LICENSE](LICENSE).
