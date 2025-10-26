@@ -12,6 +12,19 @@ import queue
 
 logger = logging.getLogger(__name__)
 
+# 错误消息常量
+ERROR_MESSAGES = {
+    "connection_not_found": "连接不存在",
+    "connection_failed": "连接失败",
+    "command_not_found": "命令不存在",
+    "session_not_found": "会话不存在",
+    "file_not_found": "文件不存在",
+    "directory_not_found": "目录不存在",
+    "permission_denied": "权限不足",
+    "timeout": "操作超时",
+    "invalid_parameter": "参数无效"
+}
+
 class ConnectionStatus(Enum):
     DISCONNECTED = "disconnected"
     CONNECTING = "connecting"
@@ -522,7 +535,7 @@ class SSHManager:
                 "success": False,
                 "exit_code": -1,
                 "stdout": "",
-                "stderr": "连接不存在"
+                "stderr": ERROR_MESSAGES["connection_not_found"]
             }
         
         connection = self.connections[connection_id]
@@ -561,7 +574,7 @@ class SSHManager:
     async def start_async_command(self, connection_id: str, command: str) -> str:
         """启动异步命令执行"""
         if connection_id not in self.connections:
-            raise Exception("连接不存在")
+            raise Exception(ERROR_MESSAGES["connection_not_found"])
         
         connection = self.connections[connection_id]
         if connection.status != ConnectionStatus.CONNECTED:
@@ -901,7 +914,7 @@ class SSHManager:
                                       pty_width: int = 80, pty_height: int = 24) -> str:
         """启动交互式会话"""
         if connection_id not in self.connections:
-            raise Exception("连接不存在")
+            raise Exception(ERROR_MESSAGES["connection_not_found"])
         
         connection = self.connections[connection_id]
         if connection.status != ConnectionStatus.CONNECTED:
@@ -1103,7 +1116,7 @@ class SSHManager:
                          progress_callback: Optional[callable] = None) -> Dict:
         """上传文件到远程服务器"""
         if connection_id not in self.connections:
-            raise Exception("连接不存在")
+            raise Exception(ERROR_MESSAGES["connection_not_found"])
         
         connection = self.connections[connection_id]
         if connection.status != ConnectionStatus.CONNECTED:
@@ -1165,7 +1178,7 @@ class SSHManager:
                            progress_callback: Optional[callable] = None) -> Dict:
         """从远程服务器下载文件"""
         if connection_id not in self.connections:
-            raise Exception("连接不存在")
+            raise Exception(ERROR_MESSAGES["connection_not_found"])
         
         connection = self.connections[connection_id]
         if connection.status != ConnectionStatus.CONNECTED:
@@ -1231,7 +1244,7 @@ class SSHManager:
     async def list_remote_directory(self, connection_id: str, remote_path: str = ".") -> Dict:
         """列出远程目录内容"""
         if connection_id not in self.connections:
-            raise Exception("连接不存在")
+            raise Exception(ERROR_MESSAGES["connection_not_found"])
         
         connection = self.connections[connection_id]
         if connection.status != ConnectionStatus.CONNECTED:
@@ -1295,7 +1308,7 @@ class SSHManager:
                                     mode: int = 0o755, parents: bool = True) -> Dict:
         """在远程服务器上创建目录"""
         if connection_id not in self.connections:
-            raise Exception("连接不存在")
+            raise Exception(ERROR_MESSAGES["connection_not_found"])
         
         connection = self.connections[connection_id]
         if connection.status != ConnectionStatus.CONNECTED:
@@ -1349,7 +1362,7 @@ class SSHManager:
     async def remove_remote_file(self, connection_id: str, remote_path: str) -> Dict:
         """删除远程文件"""
         if connection_id not in self.connections:
-            raise Exception("连接不存在")
+            raise Exception(ERROR_MESSAGES["connection_not_found"])
         
         connection = self.connections[connection_id]
         if connection.status != ConnectionStatus.CONNECTED:
@@ -1430,7 +1443,7 @@ class SSHManager:
     async def get_remote_file_info(self, connection_id: str, remote_path: str) -> Dict:
         """获取远程文件信息"""
         if connection_id not in self.connections:
-            raise Exception("连接不存在")
+            raise Exception(ERROR_MESSAGES["connection_not_found"])
         
         connection = self.connections[connection_id]
         if connection.status != ConnectionStatus.CONNECTED:
@@ -1475,7 +1488,7 @@ class SSHManager:
     async def rename_remote_path(self, connection_id: str, old_path: str, new_path: str) -> Dict:
         """重命名远程文件或目录"""
         if connection_id not in self.connections:
-            raise Exception("连接不存在")
+            raise Exception(ERROR_MESSAGES["connection_not_found"])
         
         connection = self.connections[connection_id]
         if connection.status != ConnectionStatus.CONNECTED:

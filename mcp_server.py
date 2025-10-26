@@ -137,6 +137,9 @@ class RenameRemotePathParams(BaseModel):
     old_path: str = Field(description="原始路径")
     new_path: str = Field(description="新路径")
 
+class CleanupCommandsParams(BaseModel):
+    max_age: int = Field(default=3600, description="保留时间（秒），默认3600秒")
+
 @server.list_tools()
 async def handle_list_tools() -> List[Tool]:
     """列出可用的工具"""
@@ -491,6 +494,14 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> CallToolResu
                 )
             
         elif name == "ssh_disconnect":
+            if "connection_id" not in arguments:
+                return CallToolResult(
+                    content=[TextContent(
+                        type="text",
+                        text="缺少必需参数: connection_id (SSH连接ID)"
+                    )],
+                    isError=True
+                )
             connection_id = arguments["connection_id"]
             success = await ssh_manager.disconnect(connection_id)
             
@@ -687,13 +698,13 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> CallToolResu
                 )
                 
         elif name == "ssh_cleanup_commands":
-            max_age = arguments.get("max_age", 3600)
-            cleaned_count = await ssh_manager.cleanup_completed_commands(max_age)
+            params = CleanupCommandsParams(**arguments)
+            cleaned_count = await ssh_manager.cleanup_completed_commands(params.max_age)
             
             return CallToolResult(
                 content=[TextContent(
                     type="text",
-                    text=f"已清理 {cleaned_count} 个完成的命令 (保留时间: {max_age}秒)"
+                    text=f"已清理 {cleaned_count} 个完成的命令 (保留时间: {params.max_age}秒)"
                 )]
             )
             
@@ -943,8 +954,8 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> CallToolResu
                 
                 output = f"交互式会话输出 (会话ID: {params.session_id})\n"
                 output += f"状态: {output_data['status']}\n"
-                output += f"输出行数: {len(output_data['output'])}\n"
-                output += f"缓冲区大小: {output_data['buffer_size']}\n\n"
+                output += f"输出行数: {len(output_data['output'].splitlines()) if output_data['output'] else 0}\n"
+                output += f"缓冲区大小: {output_data['output_size']}\n\n"
                 
                 if output_data['output']:
                     output += "输出内容:\n"
@@ -1374,10 +1385,57 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> CallToolResu
             
     except Exception as e:
         logger.error(f"工具调用失败: {e}")
+        error_message = str(e)
+        
+        # 改进错误消息的可读性
+        if "validation error for" in error_message:
+            # Pydantic 验证错误，提取更友好的信息
+            if "Field required" in error_message:
+                # 收集所有缺失的字段
+                missing_fields = []
+                if "connection_id" in error_message:
+                    missing_fields.append("connection_id (SSH连接ID)")
+                if "command" in error_message:
+                    missing_fields.append("command (要执行的命令)")
+                if "session_id" in error_message:
+                    missing_fields.append("session_id (交互式会话ID)")
+                if "command_id" in error_message:
+                    missing_fields.append("command_id (异步命令ID)")
+                if "remote_path" in error_message:
+                    missing_fields.append("remote_path (远程文件路径)")
+                if "local_path" in error_message:
+                    missing_fields.append("local_path (本地文件路径)")
+                if "old_path" in error_message:
+                    missing_fields.append("old_path (原始路径)")
+                if "new_path" in error_message:
+                    missing_fields.append("new_path (新路径)")
+                if "host" in error_message:
+                    missing_fields.append("host (SSH服务器地址)")
+                if "username" in error_message:
+                    missing_fields.append("username (用户名)")
+                if "config_host" in error_message:
+                    missing_fields.append("config_host (SSH config主机名)")
+                if "connection_name" in error_message:
+                    missing_fields.append("connection_name (连接名称)")
+                if "input_text" in error_message:
+                    missing_fields.append("input_text (输入文本)")
+                
+                if missing_fields:
+                    if len(missing_fields) == 1:
+                        error_message = f"缺少必需参数: {missing_fields[0]}"
+                    else:
+                        error_message = f"缺少必需参数: {', '.join(missing_fields)}"
+                else:
+                    error_message = "缺少必需参数，请检查输入"
+            elif "extra fields not permitted" in error_message:
+                error_message = "参数错误: 包含不允许的额外字段"
+            else:
+                error_message = f"参数验证失败: {error_message}"
+        
         return CallToolResult(
             content=[TextContent(
                 type="text",
-                text=f"工具调用失败: {str(e)}"
+                text=error_message
             )],
             isError=True
         )
