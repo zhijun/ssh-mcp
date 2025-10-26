@@ -2,10 +2,18 @@
 
 [中文文档 README_CN.md](README_CN.md)
 
+Manage SSH and SFTP via MCP tools for AI assistants.
+
 SSH Agent MCP is a Python-based MCP (Model Context Protocol) stdio server that lets AI assistants manage SSH connections, execute commands, and transfer files via SFTP. It supports zero-argument startup, pure CLI configuration, and JSON config files, making it simple to operate multiple remote servers securely.
 
 - Requires: Python >= 3.12
 - Project status: Beta
+
+## Why uvx?
+
+- No local install: run `uvx ssh-agent-mcp@latest` directly
+- Always up-to-date: pin to `@latest` for consistent versioning
+- Ideal for desktop assistants: simplest setup for Claude Desktop
 
 ## Install
 
@@ -67,13 +75,37 @@ The assistant can then connect using `ssh_connect` or `ssh_connect_by_name`.
 - Files: `remote_read_file`, `remote_write_file`
 - Status: `ssh_status`
 
+## Example: Connect and Execute
+
+```json
+{
+  "tool": "ssh_connect",
+  "params": {
+    "name": "prod",
+    "host": "prod.example.com",
+    "username": "admin",
+    "private_key": "/home/user/.ssh/id_rsa"
+  }
+}
+```
+
+```json
+{
+  "tool": "ssh_execute",
+  "params": {
+    "connection": "prod",
+    "command": "uname -a"
+  }
+}
+```
+
 ## Notes
 
 - Prefer `uvx ssh-agent-mcp@latest` for frictionless use.
 - If domestic mirrors cache old versions, specify PyPI index explicitly.
 - For full CLI options and advanced usage, see the Chinese guide: `README_CN.md`.
 
-## Links
+## Badges & Links
 
 - Repository: https://github.com/zhijun/ssh-mcp
 - Issues: https://github.com/zhijun/ssh-mcp/issues
