@@ -1,6 +1,6 @@
 [project]
 name = "ssh_agent_mcp"
-version = "0.3.0"
+version = "0.3.1"
 description = "SSH Agent MCP服务 - 支持SSH连接管理、命令执行和SFTP文件传输的完整MCP服务器"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -37,10 +37,10 @@ dev = [
 ssh-agent-mcp = "main:cli"
 
 [project.urls]
-Homepage = "https://github.com/yourusername/sshagent"
-Repository = "https://github.com/yourusername/sshagent"
-Documentation = "https://github.com/yourusername/sshagent#readme"
-"Bug Tracker" = "https://github.com/yourusername/sshagent/issues"
+Homepage = "https://github.com/zhijun/ssh-mcp"
+Repository = "https://github.com/zhijun/ssh-mcp"
+Documentation = "https://github.com/zhijun/ssh-mcp#readme"
+"Bug Tracker" = "https://github.com/zhijun/ssh-mcp/issues"
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
