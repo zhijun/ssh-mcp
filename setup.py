@@ -38,5 +38,5 @@ setup(
     },
     classifiers=pyproject["project"]["classifiers"],
     keywords=pyproject["project"]["keywords"],
-    license=pyproject["project"]["license"]["text"],
+    license="MIT",
 )

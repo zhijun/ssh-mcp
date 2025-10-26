@@ -1,4 +1,5 @@
 # SSH Agent MCP
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 [中文文档 README_CN.md](README_CN.md)
 
