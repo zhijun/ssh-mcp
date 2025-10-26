@@ -15,6 +15,14 @@ SSH Agent MCP is a Python-based MCP (Model Context Protocol) stdio server that l
 - Always up-to-date: pin to `@latest` for consistent versioning
 - Ideal for desktop assistants: simplest setup for Claude Desktop
 
+## Why SSH Agent MCP?
+
+- Multiple concurrent sessions: manage and track many SSH connections at once
+- Async long-running tasks: stream outputs and control jobs like `top`, `tail`, logs
+- Built-in SFTP: upload/download, list, mkdir, remove, and rename directories/files
+- Auto keepalive & reconnect: maintain session health and minimize drops
+- Interactive commands: handle `sudo`, shells, editors with input events
+
 ## Install
 
 - Recommended (no local install): `uvx ssh-agent-mcp@latest`
