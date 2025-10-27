@@ -952,14 +952,32 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> CallToolResu
                         isError=True
                     )
                 
+                # 检查会话是否存在
+                if output_data.get('status') == 'not_found':
+                    return CallToolResult(
+                        content=[TextContent(
+                            type="text",
+                            text=output_data.get('message', f"会话 {params.session_id} 不存在")
+                        )],
+                        isError=True
+                    )
+                
                 output = f"交互式会话输出 (会话ID: {params.session_id})\n"
                 output += f"状态: {output_data['status']}\n"
-                output += f"输出行数: {len(output_data['output'].splitlines()) if output_data['output'] else 0}\n"
+                
+                # 处理output可能是字符串或列表的情况
+                output_content = output_data.get('output', '')
+                if isinstance(output_content, list):
+                    output_text = ''.join(output_content)
+                else:
+                    output_text = output_content
+                
+                output += f"输出行数: {len(output_text.splitlines()) if output_text else 0}\n"
                 output += f"缓冲区大小: {output_data['output_size']}\n\n"
                 
-                if output_data['output']:
+                if output_text:
                     output += "输出内容:\n"
-                    output += "\n".join(output_data['output'])
+                    output += output_text
                 else:
                     output += "暂无输出"
                 

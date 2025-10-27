@@ -1,6 +1,6 @@
 [project]
 name = "ssh_agent_mcp"
-version = "0.3.2"
+version = "0.3.3"
 description = "SSH Agent MCP服务 - 支持SSH连接管理、命令执行和SFTP文件传输的完整MCP服务器"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -21,7 +21,8 @@ classifiers = [
 dependencies = [
     "mcp>=1.0.0",
     "paramiko>=3.0.0",
-    "pydantic>=2.0.0"
+    "pydantic>=2.0.0",
+    "pytest>=8.4.2",
 ]
 
 [project.optional-dependencies]
@@ -35,6 +36,10 @@ dev = [
 
 [project.scripts]
 ssh-agent-mcp = "main:cli"
+
+[[tool.uv.index]]
+url = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple"
+default = true
 
 [project.urls]
 Homepage = "https://github.com/zhijun/ssh-mcp"
